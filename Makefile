@@ -1,5 +1,5 @@
 SOURCES = main.c $(LIB_OUTPUT)
-TARGET = bin/main
+TARGET = main
 CC = gcc 
 
 LIBS_CURL != curl-config --libs
