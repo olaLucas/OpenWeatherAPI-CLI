@@ -42,6 +42,9 @@
 *.idb
 *.pdb
 
+# JSON
+*.json
+
 # Kernel Module Compile Results
 *.mod*
 *.cmd
