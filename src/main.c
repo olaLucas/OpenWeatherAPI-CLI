@@ -163,7 +163,7 @@ struct currentWeather_t readCurrentWeather()
     char * buffer = NULL;
     size_t buffer_size = 0;
     
-    FILE * arq = fopen("/media/dio/code/git repositories/just-coding/C/messing-with-apis/response.json", "r");
+    FILE * arq = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/response.json", "r");
     if (arq == NULL) {
         fprintf(stderr, "readCurrentWeather(): arq == NULL\n\n");
         return cW;
