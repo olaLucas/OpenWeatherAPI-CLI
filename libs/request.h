@@ -1,16 +1,21 @@
-#if !defined(INCLUDES)
-#define INCLUDES
-
+#if !defined(STD_INCLUDES)
+    #define STD_INCLUDES
     #include <stdio.h>
     #include <stdlib.h>
     #include <string.h>
-    #include <curl/curl.h>
+
+    #define STRING_SIZE 100
+    #define BUFFER_SIZE 1024
+    #define TOKEN_CHAR "\""
+
+#endif // STD_INCLUDES
+
+#if !defined(CJSON_INCLUDE)
+#define CJSON_INCLUDE
+
     #include <cjson/cJSON.h>
 
-    #define STRING_SIZE 200
-    #define BUFFER_SIZE 1024
-
-#endif // INCLUDES
+#endif // CJSON_INCLUDE
 
 extern const int FILE_FLAG;
 extern const int JSON_FLAG;
