@@ -1,19 +1,25 @@
-#if !defined(INCLUDES)
-#define INCLUDES
+#if !defined(STD_INCLUDES)
+#define STD_INCLUDES
 
     #include <stdio.h>
     #include <stdlib.h>
     #include <string.h>
-    #include <curl/curl.h>
-    #include <cjson/cJSON.h>
     #include <stdarg.h>
 
     #define STRING_SIZE 200
     #define BUFFER_SIZE 1024
     #define TOKEN_CHAR "\""
 
-#endif // INCLUDES
+#endif // STD_INCLUDES
 
+#if !defined(CJSON_INCLUDE)
+#define CJSON_INCLUDE
+
+    #include <cjson/cJSON.h>
+
+#endif // CJSON_INCLUDE
+
+#include <curl/curl.h>
 
 const int FILE_FLAG = 0;
 const int JSON_FLAG = 1;
@@ -174,6 +180,48 @@ void deleteFileStruct(const struct fileStruct * fl)
     {
         free(fl->fileName);
     }
+}
+
+/* replace token char with repo (useful when an URL contains space) */
+
+char * strrepo(const char src[], const char * token, const char * repo)
+{
+    size_t n_tokens = 0;
+    size_t s_src = strlen(src);
+    char * src_copy = (char *)calloc(s_src + 1, sizeof(char));
+    memcpy(src_copy, src, s_src);
+
+    for (size_t i = 0; i < s_src; i++)
+    {
+        if (src[i] == *token)
+        {
+            n_tokens++;
+        }
+    }
+
+    size_t s_assemble = (strlen(repo) * n_tokens) + (s_src + 1);
+    char * assemble = (char *)calloc(s_assemble, sizeof(char));
+    
+    char * buffer[n_tokens + 1];
+    char * temp = strtok(src_copy, " ");
+
+    size_t i = 0;
+    while (temp != NULL && i < n_tokens + 1)
+    {
+        buffer[i] = temp;
+        temp = strtok(NULL, " ");
+        i++;
+    }
+
+    for (size_t i = 0; i < n_tokens + 1; i++)
+    {
+        strcat(assemble, buffer[i]);
+        if (i != n_tokens) /* to avoid printing at the end of the string */
+            strcat(assemble, repo);
+    }
+
+    free(src_copy);
+    return assemble;    
 }
 
 
@@ -421,7 +469,10 @@ char * makeURL(const char strArg[], ...)
         ch = &strArg[i];
         if (*ch != '%')
         {
-            snprintf(buffer, BUFFER_SIZE, "%c", *(&strArg[i]));
+            if (*ch == ' ')
+                snprintf(buffer, BUFFER_SIZE, "%c", *(&strArg[i]));
+            else
+                snprintf(buffer, BUFFER_SIZE, "%c", *(&strArg[i]));
             copystr(&fstr, buffer, 1);
             fstr.length++;
             Findex++;
@@ -446,15 +497,22 @@ char * makeURL(const char strArg[], ...)
             break;
 
         case 's':
-
+            char * formated = NULL;
             char * tempStr = va_arg(list, char *);
-            if (strlen(tempStr) > 0)
+            size_t temp_length = strlen(tempStr);
+            if (temp_length > 0)
             {
-                size_t temp_length = strlen(tempStr);
-                copystr(&fstr, tempStr, temp_length);
-                Findex = fstr.length; // updating the index
+                if (strpbrk(tempStr, " ") == NULL)
+                {
+                    copystr(&fstr, tempStr, temp_length);
+                    Findex = fstr.length; // updating the index
+                }
+                else /* if the string contain spaces */
+                {
+                    formated = strrepo(tempStr, " ", "%20");
+                    copystr(&fstr, formated, strlen(formated));
+                }        
             }
-
 
             break;
 
