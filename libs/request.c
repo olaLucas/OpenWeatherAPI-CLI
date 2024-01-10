@@ -182,47 +182,7 @@ void deleteFileStruct(const struct fileStruct * fl)
     }
 }
 
-/* replace token char with repo (useful when an URL contains space) */
 
-char * strrepo(const char src[], const char * token, const char * repo)
-{
-    size_t n_tokens = 0;
-    size_t s_src = strlen(src);
-    char * src_copy = (char *)calloc(s_src + 1, sizeof(char));
-    memcpy(src_copy, src, s_src);
-
-    for (size_t i = 0; i < s_src; i++)
-    {
-        if (src[i] == *token)
-        {
-            n_tokens++;
-        }
-    }
-
-    size_t s_assemble = (strlen(repo) * n_tokens) + (s_src + 1);
-    char * assemble = (char *)calloc(s_assemble, sizeof(char));
-    
-    char * buffer[n_tokens + 1];
-    char * temp = strtok(src_copy, " ");
-
-    size_t i = 0;
-    while (temp != NULL && i < n_tokens + 1)
-    {
-        buffer[i] = temp;
-        temp = strtok(NULL, " ");
-        i++;
-    }
-
-    for (size_t i = 0; i < n_tokens + 1; i++)
-    {
-        strcat(assemble, buffer[i]);
-        if (i != n_tokens) /* to avoid printing at the end of the string */
-            strcat(assemble, repo);
-    }
-
-    free(src_copy);
-    return assemble;    
-}
 
 
 /* LibCurl callback functions */
@@ -271,44 +231,6 @@ size_t getResponseToFile(void * data, size_t size, size_t nmeb, void * clientp)
     
     return realsize;
 }
-
-
-/* extract, format and dynamic allocate an string from an JSON file */
-
-char * getDynamicJSONString(const char key[], const char * json_input)
-{
-    cJSON * json;
-    char * value;
-    char * valueFormated;
-    char buffer[BUFFER_SIZE] = "";
-
-    json = cJSON_Parse(json_input);
-    
-    value = cJSON_Print(cJSON_GetObjectItem(json, key));
-    if (value == NULL)
-    {
-        fprintf(stderr, "getDynamicJSONString(): Key not finded: %s\n\n", key);
-        return NULL;
-    }
-    else
-    {
-        strcpy(buffer, value);
-        valueFormated = strtok(buffer, TOKEN_CHAR);
-
-        char * newString = (char *)calloc(strlen(valueFormated) + 1, sizeof(char));
-        if (newString == NULL)
-        {
-            fprintf(stderr, "getDynamicJSONString(): Out of memory!");
-            return NULL;
-        }
-        else
-        {
-            strcpy(newString, valueFormated);
-            return newString;
-        }
-    }
-}
-
 
 /* POST methods */
 
@@ -401,9 +323,74 @@ void getToString(const char URL[], struct response * res)
     curl_easy_cleanup(handle);
 }
 
+/* remove characters at the begin and the end of an string */
+void strcln(char str[])
+{
+    size_t s_src = strlen(str);
+    if (s_src <= 0)
+    {
+        fprintf(stderr, "strcln(): s_src <= 0\n\n");
+        return;
+    }
+
+    char * buffer = (char *)calloc(s_src + 1, sizeof(char));
+    strcpy(buffer, str);
+    
+    /* replacing key at end */
+    buffer[s_src - 1] = '\0';
+    
+    /* copying after key at begining */
+    strcpy(str, &buffer[1]); 
+
+    free(buffer); 
+}
+
+/* replace token char with repo (useful when an URL contains space) */
+char * strrepo(const char src[], const char * token, const char * repo)
+{
+    size_t n_tokens = 0;
+    size_t s_src = strlen(src);
+    char * src_copy = (char *)calloc(s_src + 1, sizeof(char));
+    memcpy(src_copy, src, s_src);
+
+    for (size_t i = 0; i < s_src; i++)
+    {
+        if (src[i] == *token)
+        {
+            n_tokens++;
+        }
+    }
+
+    size_t s_assemble = (strlen(repo) * n_tokens) + (s_src + 1);
+    char * assemble = (char *)calloc(s_assemble, sizeof(char));
+    
+    char * buffer[n_tokens + 1];
+    char * temp = strtok(src_copy, " ");
+
+
+    /* dividing the string  */
+    size_t i = 0; 
+    while (temp != NULL && i < n_tokens + 1) 
+    {
+        buffer[i] = temp;
+        temp = strtok(NULL, " ");
+        i++;
+    }
+
+    /* assembling the string and replacing token by repo */
+    for (size_t i = 0; i < n_tokens + 1; i++)
+    {
+        strcat(assemble, buffer[i]);
+        if (i != n_tokens) { /* to avoid printing at the end of the string */
+            strcat(assemble, repo);
+        }
+    }
+
+    free(src_copy);
+    return assemble;    
+}
 
 /* realloc the fstr->str to fit new amount of data */
-
 char * resize(char * str, const size_t length)
 {
     if (str != NULL && length > 0)
@@ -416,7 +403,6 @@ char * resize(char * str, const size_t length)
             fprintf(stderr, "resize(): tempPtr == NULL");
             exit(-1);
         }
-
     }
     else if (str == NULL)
     {
