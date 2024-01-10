@@ -130,10 +130,15 @@ void getCurrentWeather()
     fread(buffer, 1, buffer_size, arq);
     json = cJSON_Parse(buffer);
 
-    gtD.appid = getDynamicJSONString("appid", buffer);
-    gtD.units = getDynamicJSONString("units", buffer); 
-    gtD.lat = getDynamicJSONString("lat", buffer);
-    gtD.lon = getDynamicJSONString("lon", buffer);
+    gtD.appid = cJSON_Print(cJSON_GetObjectItem(json, "appid"));
+    gtD.units = cJSON_Print(cJSON_GetObjectItem(json, "units"));
+    gtD.lat = cJSON_Print(cJSON_GetObjectItem(json, "lat"));
+    gtD.lon = cJSON_Print(cJSON_GetObjectItem(json, "lon"));
+
+    strcln(gtD.appid);
+    strcln(gtD.units);
+    strcln(gtD.lat);
+    strcln(gtD.lon);
 
     URL = makeURL(
         "https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s&units=%s",
@@ -146,11 +151,11 @@ void getCurrentWeather()
     free(buffer);
     free(URL);
     deleteFileStruct(&fl);
-    // deleteGetRequest(&gtR);
     deleteAPIData_t(&gtD);
     cJSON_Delete(json);
 }
 
+/* read response.json */
 struct currentWeather_t readCurrentWeather()
 {
     cJSON * json;
@@ -198,15 +203,37 @@ struct currentWeather_t readCurrentWeather()
     cW.weather_main = cJSON_Print(cJSON_GetObjectItem(weather, "main"));
     cW.weather_description = cJSON_Print(cJSON_GetObjectItem(weather, "description"));
 
-    cW.temp = atof(cJSON_Print(cJSON_GetObjectItem(main, "temp")));
-    cW.feels_like = atof(cJSON_Print(cJSON_GetObjectItem(main, "feels_like")));
-    cW.temp_min = atof(cJSON_Print(cJSON_GetObjectItem(main, "temp_min")));
-    cW.temp_max = atof(cJSON_Print(cJSON_GetObjectItem(main, "temp_max")));
-    cW.dt = atoll(cJSON_Print(cJSON_GetObjectItem(json, "dt")));
-    cW.sunset = atoll(cJSON_Print(cJSON_GetObjectItem(sys, "sunset")));
-    cW.sunrise = atoll(cJSON_Print(cJSON_GetObjectItem(sys, "sunrise")));
+    strcln(cW.name);
+    strcln(cW.country);
+    strcln(cW.weather_main);
+    strcln(cW.weather_description);
+
+    /* avoiding data leak */
+    char * temp = cJSON_Print(cJSON_GetObjectItem(main, "temp"));
+    char * feels_like = cJSON_Print(cJSON_GetObjectItem(main, "feels_like"));
+    char * temp_min = cJSON_Print(cJSON_GetObjectItem(main, "temp_min"));
+    char * temp_max = cJSON_Print(cJSON_GetObjectItem(main, "temp_max"));
+    char * dt = cJSON_Print(cJSON_GetObjectItem(main, "dt"));
+    char * sunset = cJSON_Print(cJSON_GetObjectItem(main, "sunset"));
+    char * sunrise = cJSON_Print(cJSON_GetObjectItem(main, "sunrise"));
+
+    cW.temp = atof(temp);
+    cW.feels_like = atof(feels_like);
+    cW.temp_min = atof(temp_min);
+    cW.temp_max = atof(temp_max);
+    cW.dt = atoll(dt);
+    cW.sunset = atoll(sunset);
+    cW.sunrise = atoll(sunrise);
     cW.date = ctime(&cW.dt);
 
+
+    free(temp);
+    free(feels_like);
+    free(temp_min);
+    free(temp_max);
+    free(dt);
+    free(sunset);
+    free(sunrise);
     free(buffer);
     cJSON_Delete(json);
     fclose(arq);
@@ -217,7 +244,7 @@ int main(void)
 {
     struct currentWeather_t cW;
 
-    // getCurrentWeather();
+    getCurrentWeather();
     cW = readCurrentWeather();
     printCurrentWeather_t(cW);
 
