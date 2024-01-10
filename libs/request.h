@@ -82,12 +82,6 @@ extern void deleteFileStruct(const struct fileStruct * fl);
 
 
 /* 
-    extract, format and dynamic allocate an string from an JSON file 
-*/
-extern char * getDynamicJSONString(const char key[], const char * json_input);
-
-
-/* 
     POST methods
 */
 extern char * postToString(const char URL[], const char body[], const char headers[]);
@@ -103,6 +97,11 @@ extern char * makeURL(const char strArg[], ...);
 */
 extern void GETRequest(const char URL[], void * output, const int flag);
 
+/* 
+    str functions
+*/
+
+extern void strcln(char str[]);
 
 /* 
     get the size of an file
