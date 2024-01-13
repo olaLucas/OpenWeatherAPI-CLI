@@ -4,7 +4,7 @@
     #include <stdlib.h>
     #include <string.h>
 
-    #define STRING_SIZE 100
+    #define STRING_SIZE 300
     #define BUFFER_SIZE 1024
     #define TOKEN_CHAR "\""
 
@@ -42,6 +42,13 @@ struct token
     size_t expires_in;
 };
 
+struct string
+{
+    char * str;
+    size_t length;
+    size_t max_size;
+};
+
 struct getRequest
 {
     char * body;
@@ -62,6 +69,7 @@ struct fileStruct
 extern struct fileStruct initFileStruct(const char * FILE_NAME, const char * mode);
 extern struct postRequest initPOST();
 extern struct response initResponse();
+extern struct string initSTRING(const size_t size);
 extern struct getRequest initGetRequest();
 
 
@@ -78,6 +86,7 @@ extern void print_getRequest(struct getRequest * gt);
 extern void deletePOST(struct postRequest * htp);
 extern void deleteResponse(struct response * res);
 extern void deleteGetRequest(struct getRequest * gt);
+extern void deleteSTRING(struct string * buf);
 extern void deleteFileStruct(const struct fileStruct * fl);
 
 
