@@ -6,7 +6,7 @@
     #include <string.h>
     #include <stdarg.h>
 
-    #define STRING_SIZE 200
+    #define STRING_SIZE 300
     #define BUFFER_SIZE 1024
     #define TOKEN_CHAR "\""
 
@@ -61,7 +61,9 @@ struct fileStruct
 };
 
 
-/* INIT Functions */
+/* 
+    INIT Functions 
+*/
 
 struct fileStruct initFileStruct(const char * FILE_NAME, const char * mode)
 {
@@ -130,7 +132,9 @@ struct getRequest initGetRequest()
 }
 
 
-/* PRINT Functions */
+/* 
+    PRINT Functions 
+*/
 
 void print_response(struct response * res)
 {
@@ -145,7 +149,9 @@ void print_getRequest(struct getRequest * x)
 }
 
 
-/* DELELTE Functions */
+/* 
+    DELELTE Functions 
+*/
 
 void deleteResponse(struct response * res)
 {
@@ -182,146 +188,9 @@ void deleteFileStruct(const struct fileStruct * fl)
     }
 }
 
-
-
-
-/* LibCurl callback functions */
-
-size_t getResponseToString(void * data, size_t size, size_t nmeb, void * clientp)
-{
-    struct response * res = (struct response *)clientp;
-    size_t realsize = size * nmeb;
-
-    // alocando espaço para os novos caracteres
-    char * string = realloc(res->data, res->size + realsize + 1);
-    if (string == NULL)
-    {
-        puts("Out of memory!\n");
-        return 0;
-    }
-
-    // atualizando o ponteiro para a nova string
-    res->data = string;
-
-    // copiando os dados recebidos em data para a response string
-    strcat(res->data, data);
-
-    // atualizando o tamanho da response string
-    res->size += realsize;
-
-    return realsize;
-}
-
-size_t getResponseToFile(void * data, size_t size, size_t nmeb, void * clientp)
-{
-    size_t realsize = (size * nmeb);
-    FILE * arq = (FILE *)clientp;
-
-    if (arq == NULL)
-    {   
-
-        fprintf(stderr, "Error while opening file.");
-        return 0;
-    }
-    else
-    {
-        puts("Writing data...");
-        fwrite(data, size, realsize, arq);
-    }
-    
-    return realsize;
-}
-
-/* POST methods */
-
-char * postToString(const char URL[], const char body[], const char headers[])
-{
-    struct response res = initResponse();
-
-    CURL * handle = curl_easy_init();
-    curl_easy_setopt(handle, CURLOPT_URL, URL);
-    curl_easy_setopt(handle, CURLOPT_POST, 1L); // 1L == x-www-form-urlencoded
-    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
-
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&res);
-
-    CURLcode result = curl_easy_perform(handle);
-    if (result != CURLE_OK)
-    {
-        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
-        return NULL;
-    }
-    else
-    {
-        printf("Token obtained: %s\n", res.data);
-        return res.data;
-    }
-}
-
-
-/* GET methods */
-
-void getToFile(const char URL[], const struct fileStruct * fl)
-{
-    CURL * handle = curl_easy_init();
-    curl_easy_setopt(handle, CURLOPT_URL, URL);
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToFile);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, fl->fp);
-
-    CURLcode result = curl_easy_perform(handle);
-    if (result != CURLE_OK)
-    {
-        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
-        return;
-    }
-
-    fflush(fl->fp);
-    curl_easy_cleanup(handle);
-}
-
-void getToJSONFile(const char URL[], const struct fileStruct * fl)
-{
-    cJSON * json;
-    struct response res = initResponse();
-
-    CURL * handle = curl_easy_init();
-    curl_easy_setopt(handle, CURLOPT_URL, URL);
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&res);
-
-    CURLcode result = curl_easy_perform(handle);
-    if (result != CURLE_OK)
-    {
-        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
-        return;
-    }
-
-    json = cJSON_Parse(res.data);
-    fprintf(fl->fp, cJSON_Print(json));
-
-    deleteResponse(&res);
-    cJSON_Delete(json);
-    curl_easy_cleanup(handle);
-    fflush(fl->fp);
-}
-
-void getToString(const char URL[], struct response * res)
-{
-    CURL * handle = curl_easy_init();
-    curl_easy_setopt(handle, CURLOPT_URL, URL);
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, res);
-
-    CURLcode result = curl_easy_perform(handle);
-    if (result != CURLE_OK)
-    {
-        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
-        return;
-    }
-
-    curl_easy_cleanup(handle);
-}
+/* 
+    STR FUNCTIONS
+*/
 
 /* remove characters at the begin and the end of an string */
 void strcln(char str[])
@@ -433,6 +302,7 @@ void copystr(struct string * fstr, const char * str, const size_t str_length)
 
 
 /* Like printf(), you pass the basic url with the type identifiers where it should be replaced by the respective variable passed to the function. */
+
 char * makeURL(const char strArg[], ...)
 {
     size_t ARG_Size = strlen(strArg);
@@ -551,6 +421,136 @@ char * makeURL(const char strArg[], ...)
 }
 
 
+
+/* 
+    LibCurl callback functions 
+*/
+
+size_t getResponseToString(void * data, size_t size, size_t nmeb, void * clientp)
+{
+    struct string * res = (struct string *)clientp;
+    size_t realsize = size * nmeb;
+
+    copystr(res, (char *)data, realsize + 1);
+
+    return realsize;
+}
+
+size_t getResponseToFile(void * data, size_t size, size_t nmeb, void * clientp)
+{
+    size_t realsize = (size * nmeb);
+    FILE * arq = (FILE *)clientp;
+
+    if (arq == NULL)
+    {   
+        fprintf(stderr, "Error while opening file.");
+        return 0;
+    }
+    else
+    {
+        puts("Writing data...");
+        fwrite(data, size, realsize, arq);
+    }
+    
+    return realsize;
+}
+
+/* 
+    POST methods 
+*/
+
+char * postToString(const char URL[], const char body[], const char headers[])
+{
+    struct response res = initResponse();
+
+    CURL * handle = curl_easy_init();
+    curl_easy_setopt(handle, CURLOPT_URL, URL);
+    curl_easy_setopt(handle, CURLOPT_POST, 1L); // 1L == x-www-form-urlencoded
+    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
+
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&res);
+
+    CURLcode result = curl_easy_perform(handle);
+    if (result != CURLE_OK)
+    {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
+        return NULL;
+    }
+    else
+    {
+        printf("Token obtained: %s\n", res.data);
+        return res.data;
+    }
+}
+
+
+/* 
+    GET methods 
+*/
+
+void getToFile(const char URL[], const struct fileStruct * fl)
+{
+    CURL * handle = curl_easy_init();
+    curl_easy_setopt(handle, CURLOPT_URL, URL);
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToFile);
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, fl->fp);
+
+    CURLcode result = curl_easy_perform(handle);
+    if (result != CURLE_OK)
+    {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
+        return;
+    }
+
+    fflush(fl->fp);
+    curl_easy_cleanup(handle);
+}
+
+void getToJSONFile(const char URL[], const struct fileStruct * fl)
+{
+    cJSON * json;
+    struct response res = initResponse();
+
+    CURL * handle = curl_easy_init();
+    curl_easy_setopt(handle, CURLOPT_URL, URL);
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&res);
+
+    CURLcode result = curl_easy_perform(handle);
+    if (result != CURLE_OK)
+    {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
+        return;
+    }
+
+    json = cJSON_Parse(res.data);
+    fprintf(fl->fp, cJSON_Print(json));
+
+    deleteResponse(&res);
+    cJSON_Delete(json);
+    curl_easy_cleanup(handle);
+    fflush(fl->fp);
+}
+
+void getToString(const char URL[], struct string * res)
+{
+    CURL * handle = curl_easy_init();
+    curl_easy_setopt(handle, CURLOPT_URL, URL);
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, res);
+
+    CURLcode result = curl_easy_perform(handle);
+    if (result != CURLE_OK)
+    {
+        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
+        return;
+    }
+
+    curl_easy_cleanup(handle);
+}
+
+
 /* wrapper of the GET methods. Pass the URL, the type of output (fileStruct, response) and the flag (JSON, FILE, STRING) */
 void GETRequest(const char URL[], void * output, const int flag)
 {
@@ -595,7 +595,7 @@ void GETRequest(const char URL[], void * output, const int flag)
             }
         }
         else if (STRING_FLAG == flag) {
-            getToString(URL, (struct response *)output);
+            getToString(URL, (struct string *)output);
         }
     }
     else // wrong flag

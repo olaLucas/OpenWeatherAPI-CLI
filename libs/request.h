@@ -35,13 +35,6 @@ struct postRequest
     char * body;
 };
 
-struct token
-{
-    char * access_token;
-    char * token_type;
-    size_t expires_in;
-};
-
 struct string
 {
     char * str;
