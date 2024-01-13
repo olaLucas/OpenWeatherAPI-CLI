@@ -15,6 +15,6 @@ request.o :  libs/request.c libs/request.h
 	$(CC) libs/request.c -c -g -Wall -o bin/request.o
 
 clean :
-	rm $(TARGET)
-	rm main.o
+	rm bin/main.o
 	rm bin/request.o
+	rm $(TARGET)
