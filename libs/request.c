@@ -455,34 +455,6 @@ size_t getResponseToFile(void * data, size_t size, size_t nmeb, void * clientp)
     return realsize;
 }
 
-/* 
-    POST methods 
-*/
-
-char * postToString(const char URL[], const char body[], const char headers[])
-{
-    struct response res = initResponse();
-
-    CURL * handle = curl_easy_init();
-    curl_easy_setopt(handle, CURLOPT_URL, URL);
-    curl_easy_setopt(handle, CURLOPT_POST, 1L); // 1L == x-www-form-urlencoded
-    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
-
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, getResponseToString);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)&res);
-
-    CURLcode result = curl_easy_perform(handle);
-    if (result != CURLE_OK)
-    {
-        fprintf(stderr, "Error: %s\n", curl_easy_strerror(result));
-        return NULL;
-    }
-    else
-    {
-        printf("Token obtained: %s\n", res.data);
-        return res.data;
-    }
-}
 
 
 /* 

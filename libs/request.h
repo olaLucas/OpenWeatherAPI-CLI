@@ -84,12 +84,6 @@ extern void deleteFileStruct(const struct fileStruct * fl);
 
 
 /* 
-    POST methods
-*/
-extern char * postToString(const char URL[], const char body[], const char headers[]);
-
-
-/* 
     Like printf(), you pass the basic url with the type identifiers where it should be replaced by the respective variable passed to the function.
 */
 extern char * makeURL(const char strArg[], ...);
