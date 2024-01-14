@@ -16,9 +16,8 @@
 struct GeocodingData_t
 {
     char * city;
-    char * country;
+    char * country; /* ISO code */
     char * state;
-    char * iso; /* ISO 3166 country codes. */
     char * lon;
     char * lat;
 };
@@ -37,16 +36,14 @@ struct currentWeather_t
     char * country;
     char * weather_main;
     char * weather_description;
+    char * sunset;
+    char * sunrise;
 
     float temp;
     float feels_like;
     float temp_min;
     float temp_max;
     float humidity;
-
-    time_t sunset;
-    time_t sunrise;
-    time_t dt;
 };
 
 
@@ -76,11 +73,20 @@ struct APIData_t initData()
 
 void deleteGeo(struct GeocodingData_t * geo)
 {   
-    free(geo->city);
-    free(geo->state);
-    free(geo->country);
-    free(geo->lat);
-    free(geo->lon);
+    if (geo->city != NULL)
+        free(geo->city);
+    
+    if (geo->state)
+        free(geo->state);
+    
+    if (geo->country)
+        free(geo->country);
+    
+    if (geo->lat)
+        free(geo->lat);
+    
+    if (geo->lon)
+        free(geo->lon);
 }
 
 void deleteAPIData_t(struct APIData_t * data)
@@ -108,14 +114,20 @@ void deleteCurrentWeather_t(struct currentWeather_t * cW)
     if (cW->weather_description != NULL)
         free(cW->weather_description);
 
+    // if (cW->date != NULL)
+    //     free(cW->date);
+
+    // if (cW->sunrise != NULL)
+    //     free(cW->sunrise);
+    
+    // if (cW->sunset != NULL)
+    //     free(cW->sunrise);
+
     cW->temp = 0.0f;
     cW->feels_like = 0.0f;
     cW->temp_min = 0.0f;
     cW->temp_max = 0.0f;
     cW->humidity = 0.0f;
-    cW->sunset = 0;
-    cW->dt = 0;
-    cW->sunrise = 0;
 }
 
 
@@ -157,6 +169,8 @@ void checkCache(struct APIData_t * data)
         strcln(data->geo.city);
         strcln(data->geo.state);
         strcln(data->geo.country);
+        strcln(data->geo.lat);
+        strcln(data->geo.lon);
     }
 
     if (cJSON_HasObjectItem(infoJSON, "units"))
@@ -176,21 +190,22 @@ void checkCache(struct APIData_t * data)
 
 /* search for an specific object in info.json */
 
-char * requestForJSON(const char key[])
+void requestForJSON(char str[], const char key[])
 {
     char * returnString = NULL;
     FILE * arq = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/info.json", "r");
     if (arq == NULL)
     {
         fprintf(stderr, "info.json was not found, may be your first time using the application. If so, you'll need to provide some informations first, check the documentation.\n\n");
-        return NULL;
+        return;
     }
 
     size_t buffer_size = file_size(arq);
     if (buffer_size <= 0)
     {   
         fprintf(stderr, "info.json is empty.\n\n");
-        return NULL;
+        fclose(arq);
+        return;
     }
     
     char * buffer = (char *)calloc(buffer_size + 1, sizeof(char));
@@ -201,6 +216,8 @@ char * requestForJSON(const char key[])
     if (cJSON_HasObjectItem(info, key))
     {
         returnString = cJSON_Print(cJSON_GetObjectItemCaseSensitive(info, key));
+        strcln(returnString);
+        strcpy(str, returnString);
     }
     else
     {
@@ -209,17 +226,16 @@ char * requestForJSON(const char key[])
     
 
     fclose(arq);
+    free(returnString);
     free(buffer);
     cJSON_Delete(info);
-
-    return returnString;
 }
 
 
 /* GET Requests */
 
-struct string GETCurrentWeather(struct APIData_t apidata)
-{
+struct string GETCurrentWeather(const struct APIData_t apidata)
+{ 
     char * URL = makeURL(
         "https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s&units=%s",
         apidata.geo.lat, apidata.geo.lon, apidata.appid, apidata.units
@@ -228,18 +244,20 @@ struct string GETCurrentWeather(struct APIData_t apidata)
     struct string res = initSTRING(STRING_SIZE + 1);
     GETRequest(URL, (void *)&res, STRING_FLAG);
 
+    free(URL);
     return res;
 }
 
-struct string GETGeocoding(struct APIData_t data)
+struct string GETGeocoding(const struct APIData_t data)
 {
     char * URL = makeURL(
         "http://api.openweathermap.org/geo/1.0/direct?q=%s,%s&appid=%s",
-        data.geo.city, data.geo.iso, data.appid);
+        data.geo.city, data.geo.country, data.appid);
 
     struct string res = initSTRING(STRING_SIZE);
     GETRequest(URL, (void *)&res, STRING_FLAG);
 
+    free(URL);
     return res;
 }
 
@@ -258,10 +276,8 @@ struct currentWeather_t readCurrentWeather(struct string res)
     json = cJSON_Parse(res.str);
 
     if (json == NULL) {
-        fprintf(stderr, "readCurrentWeather(): json == NULL\n\n");
-        exit(-1);
+        fprintf(stderr, "readCurrentWeather(): json == NULL\n\n"); exit(-1); 
     }
-
     main = cJSON_GetObjectItem(json, "main");
     sys = cJSON_GetObjectItem(json, "sys");
 
@@ -281,35 +297,42 @@ struct currentWeather_t readCurrentWeather(struct string res)
     strcln(cW.weather_description);
 
     /* avoiding data leak */
-    char * dt = cJSON_Print(cJSON_GetObjectItem(json, "dt"));
+    char * dt_buff = cJSON_Print(cJSON_GetObjectItem(json, "dt"));
 
-    char * temp = cJSON_Print(cJSON_GetObjectItem(main, "temp"));
-    char * feels_like = cJSON_Print(cJSON_GetObjectItem(main, "feels_like"));
-    char * temp_min = cJSON_Print(cJSON_GetObjectItem(main, "temp_min"));
-    char * temp_max = cJSON_Print(cJSON_GetObjectItem(main, "temp_max"));
-    char * humidity = cJSON_Print(cJSON_GetObjectItemCaseSensitive(main, "humidity"));
+    char * temp_buff = cJSON_Print(cJSON_GetObjectItem(main, "temp"));
+    char * feels_like_buff = cJSON_Print(cJSON_GetObjectItem(main, "feels_like"));
+    char * temp_min_buff = cJSON_Print(cJSON_GetObjectItem(main, "temp_min"));
+    char * temp_max_buff = cJSON_Print(cJSON_GetObjectItem(main, "temp_max"));
+    char * humidity_buff = cJSON_Print(cJSON_GetObjectItemCaseSensitive(main, "humidity"));
     
-    char * sunset = cJSON_Print(cJSON_GetObjectItem(sys, "sunset"));
-    char * sunrise = cJSON_Print(cJSON_GetObjectItem(sys, "sunrise"));
+    char * sunset_buff = cJSON_Print(cJSON_GetObjectItem(sys, "sunset"));
+    char * sunrise_buff = cJSON_Print(cJSON_GetObjectItem(sys, "sunrise"));
 
-    cW.temp = atof(temp);
-    cW.feels_like = atof(feels_like);
-    cW.temp_min = atof(temp_min);
-    cW.temp_max = atof(temp_max);
-    cW.humidity = atof(humidity);
-    cW.dt = atoll(dt);
-    cW.sunset = atoll(sunset);
-    cW.sunrise = atoll(sunrise);
-    cW.date = ctime(&cW.dt);
+    cW.temp = atof(temp_buff);
+    cW.feels_like = atof(feels_like_buff);
+    cW.temp_min = atof(temp_min_buff);
+    cW.temp_max = atof(temp_max_buff);
+    cW.humidity = atof(humidity_buff);
+    
 
-    free(temp);
-    free(feels_like);
-    free(temp_min);
-    free(temp_max);
-    free(humidity);
-    free(dt);
-    free(sunset);
-    free(sunrise);
+    time_t sunset_t = atoll(sunset_buff);
+    cW.sunset = ctime(&sunset_t);
+
+    time_t sunrise_t = atoll(sunrise_buff);
+    cW.sunrise = ctime(&sunrise_t);
+
+
+    time_t dt_ = atoll(dt_buff);
+    cW.date = ctime(&dt_);
+
+    free(temp_buff);
+    free(feels_like_buff);
+    free(temp_min_buff);
+    free(temp_max_buff);
+    free(humidity_buff);
+    free(dt_buff);
+    free(sunset_buff);
+    free(sunrise_buff);
     cJSON_Delete(json);
 
     return cW;
@@ -318,7 +341,8 @@ struct currentWeather_t readCurrentWeather(struct string res)
 struct GeocodingData_t readGeocoding(struct string res)
 {
     struct GeocodingData_t geo = {NULL};
-    cJSON * responseJSON = cJSON_Parse(res.str);
+    cJSON * arrayJSON = cJSON_Parse(res.str);
+    cJSON * responseJSON = cJSON_GetArrayItem(arrayJSON, 0);
 
     if (responseJSON == NULL) {
         fprintf(stderr, "readGeocoding(): responseJSON == NULL.\n\n");
@@ -330,13 +354,12 @@ struct GeocodingData_t readGeocoding(struct string res)
     geo.country = cJSON_Print(cJSON_GetObjectItemCaseSensitive(responseJSON, "country"));
     geo.lon = cJSON_Print(cJSON_GetObjectItemCaseSensitive(responseJSON, "lon"));
     geo.lat = cJSON_Print(cJSON_GetObjectItemCaseSensitive(responseJSON, "lat"));
-
+    
     strcln(geo.city);
     strcln(geo.country);
-    strcln(geo.lon);
-    strcln(geo.lat);
     strcln(geo.state);
 
+    cJSON_Delete(arrayJSON);
     return geo;
 }
 
@@ -353,6 +376,7 @@ struct GeocodingData_t readGeocoding(struct string res)
 ]
 */
 
+
 void saveNewArgs(struct APIData_t data)
 {
     FILE * arq = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/info.json", "r");
@@ -366,9 +390,7 @@ void saveNewArgs(struct APIData_t data)
 
     fread(buffer, buffer_size, 1, arq);
 
-    cJSON * arrayJSON = cJSON_Parse(buffer);
-    cJSON * infoJSON = cJSON_GetArrayItem(arrayJSON, 0);
-    
+    cJSON * infoJSON = cJSON_Parse(buffer);    
     cJSON * geoJSON = cJSON_CreateObject();
 
     if (cJSON_HasObjectItem(infoJSON, "Geocoding")) 
@@ -380,10 +402,10 @@ void saveNewArgs(struct APIData_t data)
         cJSON_AddItemToObject(infoJSON, "Geocoding", geoJSON);
     }
 
-    cJSON_AddStringToObject(geoJSON, "name", data.geo.city);
+    cJSON_AddStringToObject(geoJSON, "city", data.geo.city);
     cJSON_AddStringToObject(geoJSON, "lat", data.geo.lat);
     cJSON_AddStringToObject(geoJSON, "lon", data.geo.lon);
-    cJSON_AddStringToObject(geoJSON, "country", data.geo.state);
+    cJSON_AddStringToObject(geoJSON, "country", data.geo.country);
     cJSON_AddStringToObject(geoJSON, "state", data.geo.state);
 
 
@@ -420,7 +442,7 @@ void saveNewArgs(struct APIData_t data)
     char * puts_buffer = cJSON_Print(infoJSON);
     fputs(puts_buffer, arq);
 
-
+    fclose(arq);
     free(buffer);
     free(puts_buffer);
     cJSON_Delete(infoJSON);
@@ -432,18 +454,23 @@ void checkTerminalArgs(struct APIData_t * data, int argc, char * argv[])
     {
         if (strcmp(argv[i], "--appid") == 0 || strcmp(argv[i], "-a") == 0)
         {
-            data->appid = argv[i + 1];
+            strcpy(data->appid, argv[i + 1]);
             i++;
         }
         else if (strcmp(argv[i], "--city") == 0 || strcmp(argv[i], "-c") == 0)
         {
-            data->geo.city = argv[i + 1];
+            strcpy(data->geo.city, argv[i + 1]);
             i++;
         }
         else if (strcmp(argv[i], "--country") == 0 || strcmp(argv[i], "-C") == 0)
         {
-            data->geo.country = argv[i + 1];
+            strcpy(data->geo.country, argv[i + 1]);
             i++;
+        }
+        else if (strcmp(argv[i], "--units") == 0 || strcmp(argv[i], "-u") == 0)
+        {
+          strcpy(data->units, argv[i + 1]);
+          i++;
         }
     }
 
@@ -460,9 +487,18 @@ void checkTerminalArgs(struct APIData_t * data, int argc, char * argv[])
         exit(-1);
     }
 
-    if (data->appid == NULL)
+    if (strcmp(data->units, "") == 0)
     {
-        data->appid = requestForJSON("appid");
+      requestForJSON(data->units, "units");
+      if (strcmp(data->units, "") == 0)
+      {
+        strcpy(data->units, "metric");
+      }
+    }
+
+    if (strcmp(data->appid, "") == 0)
+    {
+        requestForJSON(data->appid, "appid");
         if (data->appid == NULL)
         {
             fprintf(stderr, "Appid was not provided and also not found in info.json.\n\n");
@@ -480,16 +516,25 @@ void printCurrentWeather(const struct APIData_t data, const struct currentWeathe
         ch = "°F";
     }
 
-    printf("%s | %s\n", cW.name, cW.country);
-    printf("%s\n", cW.date);
-    printf("%s: %s\n\n", cW.weather_main, cW.weather_description);
+    printf(" %s | %s\n", cW.name, cW.country);
+    printf(" %s\n", cW.date);
+    printf(" %s: %s\n\n", cW.weather_main, cW.weather_description);
 
-    printf("Temperature: %f %s| Feels like: %f %s\n", cW.temp, ch, cW.feels_like, ch);
-    printf("Temperature min: %f %s | Temperature Max: %f %s\n", cW.temp_min, ch, cW.temp_max, ch);
-    printf("Humidity: %f\n\n", cW.humidity);
+    printf(" Temperature: %f %s \t| Feels like: %f %s\n", cW.temp, ch, cW.feels_like, ch);
+    printf(" Temperature min: %f %s \t| Temperature Max: %f %s\n", cW.temp_min, ch, cW.temp_max, ch);
+    printf(" Humidity: %f\n\n", cW.humidity);
 
-    printf("Sunset: %ld | Sunrise: %ld\n", cW.sunset, cW.sunrise);
+    printf(" Sunset: %s | Sunrise: %s\n", cW.sunset, cW.sunrise);
 }
+
+/*  TERMINAL ARGS
+ *  
+ *  --appid   or  -a  : OpenWeather API key
+ *  --city    or  -c  : the city you live in (if it constais space, put it between "")
+ *  --country or  -C  : ISO 3166 code for your country
+ *  --units   or  -u  : choose between celcius and fahrenheint
+ * */
+
 
 int main(int argc, char * argv[])
 {   
@@ -507,6 +552,7 @@ int main(int argc, char * argv[])
     }
     else
     {   
+        data = initData();
         checkTerminalArgs(&data, argc, argv);
         struct string resGeocoding = GETGeocoding(data);
 
@@ -514,6 +560,8 @@ int main(int argc, char * argv[])
 
         struct string resCurrentWeather = GETCurrentWeather(data);
         struct currentWeather_t cW = readCurrentWeather(resCurrentWeather);
+
+        printCurrentWeather(data, cW);
 
         saveNewArgs(data);
 
@@ -525,3 +573,9 @@ int main(int argc, char * argv[])
 
     return 0;
 }
+
+/* 
+    TO DO:
+        terminal args are not working: segmented fault somewhere
+
+*/
