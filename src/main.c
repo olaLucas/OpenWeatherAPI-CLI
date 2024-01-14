@@ -573,9 +573,3 @@ int main(int argc, char * argv[])
 
     return 0;
 }
-
-/* 
-    TO DO:
-        terminal args are not working: segmented fault somewhere
-
-*/
