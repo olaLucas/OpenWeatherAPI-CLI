@@ -10,6 +10,7 @@
 
 #endif // INCLUDES
 
+#include <stdbool.h>
 #include <time.h>
 #include "../libs/request.h"
 
@@ -76,16 +77,16 @@ void deleteGeo(struct GeocodingData_t * geo)
     if (geo->city != NULL)
         free(geo->city);
     
-    if (geo->state)
+    if (geo->state != NULL)
         free(geo->state);
     
-    if (geo->country)
+    if (geo->country != NULL)
         free(geo->country);
     
-    if (geo->lat)
+    if (geo->lat != NULL)
         free(geo->lat);
     
-    if (geo->lon)
+    if (geo->lon != NULL)
         free(geo->lon);
 }
 
@@ -130,73 +131,15 @@ void deleteCurrentWeather_t(struct currentWeather_t * cW)
     cW->humidity = 0.0f;
 }
 
-
-void checkCache(struct APIData_t * data)
-{   
-    FILE * info = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/info.json", "r");
-    if (info == NULL) {
-        fprintf(stderr, "info.json not found.\n\n");
-        exit(-1);
-    }
-
-    cJSON * infoJSON = NULL;
-    size_t buffer_size = file_size(info);
-    char * buffer = (char *)calloc(buffer_size + 1, sizeof(char));
-
-    fread(buffer, buffer_size, 1, info);
-
-    infoJSON = cJSON_Parse(buffer);
-    if (cJSON_HasObjectItem(infoJSON, "appid"))
-    {
-        data->appid = cJSON_Print(cJSON_GetObjectItemCaseSensitive(infoJSON, "appid"));
-        strcln(data->appid);
-    }
-    else
-    {
-        fprintf(stderr, "appid not found in cache. please inform it using --appid or -a flags next time.\n\n");
-    }
-    
-    if (cJSON_HasObjectItem(infoJSON, "Geocoding"))
-    {   
-        cJSON * geoJSON = cJSON_GetObjectItemCaseSensitive(infoJSON, "Geocoding");
-
-        data->geo.city = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "city"));
-        data->geo.state = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "state"));
-        data->geo.country = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "country"));
-        data->geo.lat = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "lat"));
-        data->geo.lon = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "lon"));
-
-        strcln(data->geo.city);
-        strcln(data->geo.state);
-        strcln(data->geo.country);
-        strcln(data->geo.lat);
-        strcln(data->geo.lon);
-    }
-
-    if (cJSON_HasObjectItem(infoJSON, "units"))
-    {
-        data->units = cJSON_Print(cJSON_GetObjectItemCaseSensitive(infoJSON, "units"));
-        strcln(data->units);
-    }
-    else
-    {
-        data->units = NULL;
-    }
-
-    fclose(info);
-    cJSON_Delete(infoJSON);
-    free(buffer);
-}
-
 /* search for an specific object in info.json */
 
 void requestForJSON(char str[], const char key[])
 {
     char * returnString = NULL;
-    FILE * arq = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/info.json", "r");
+    FILE * arq = fopen("/app/info.json", "r");
     if (arq == NULL)
     {
-        fprintf(stderr, "info.json was not found, may be your first time using the application. If so, you'll need to provide some informations first, check the documentation.\n\n");
+        fprintf(stderr, "info.json was not found.\n\n");
         return;
     }
 
@@ -252,7 +195,8 @@ struct string GETGeocoding(const struct APIData_t data)
 {
     char * URL = makeURL(
         "http://api.openweathermap.org/geo/1.0/direct?q=%s,%s&appid=%s",
-        data.geo.city, data.geo.country, data.appid);
+        data.geo.city, data.geo.country, data.appid
+    );
 
     struct string res = initSTRING(STRING_SIZE);
     GETRequest(URL, (void *)&res, STRING_FLAG);
@@ -376,21 +320,50 @@ struct GeocodingData_t readGeocoding(struct string res)
 ]
 */
 
+void printCurrentWeather(const struct APIData_t data, const struct currentWeather_t cW)
+{
+    char * ch;
+    if (strcmp(data.units, "metric") == 0) {
+        ch = "°C";
+    } else {
+        ch = "°F";
+    }
+
+    printf(" %s | %s\n", cW.name, cW.country);
+    printf(" %s\n", cW.date);
+    printf(" %s: %s\n\n", cW.weather_main, cW.weather_description);
+
+    printf(" Temperature: %f %s \t| Feels like: %f %s\n", cW.temp, ch, cW.feels_like, ch);
+    printf(" Temperature min: %f %s \t| Temperature Max: %f %s\n", cW.temp_min, ch, cW.temp_max, ch);
+    printf(" Humidity: %f\n\n", cW.humidity);
+
+    printf(" Sunset: %s | Sunrise: %s\n", cW.sunset, cW.sunrise);
+}
+
+
 
 void saveNewArgs(struct APIData_t data)
 {
-    FILE * arq = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/info.json", "r");
+    cJSON * infoJSON = NULL;
+
+    FILE * arq = fopen("info.json", "r");
     if (arq == NULL) {
-        fprintf(stderr, ".\n\n");
-        return;
+        fprintf(stderr, "info.json not found. Creating it...\n\n");
+        infoJSON = cJSON_CreateObject();
+    }
+    else 
+    {
+        size_t buffer_size = file_size(arq);
+        char * buffer = (char *)calloc(buffer_size + 1, sizeof(char));
+        fread(buffer, buffer_size, 1, arq);
+
+        infoJSON = cJSON_Parse(buffer);
+
+        fclose(arq);
+        free(buffer);
     }
 
-    size_t buffer_size = file_size(arq);
-    char * buffer = (char *)calloc(buffer_size + 1, sizeof(char));
-
-    fread(buffer, buffer_size, 1, arq);
-
-    cJSON * infoJSON = cJSON_Parse(buffer);    
+    
     cJSON * geoJSON = cJSON_CreateObject();
 
     if (cJSON_HasObjectItem(infoJSON, "Geocoding")) 
@@ -430,9 +403,7 @@ void saveNewArgs(struct APIData_t data)
         cJSON_AddStringToObject(infoJSON, "units", data.units);
     }
 
-    fclose(arq);
-
-    arq = fopen("/media/dio/code/git repositories/OpenWeatherAPI-CLI/info.json", "w");
+    arq = fopen("info.json", "w");
     if (arq == NULL)
     {
         fprintf(stderr, "wasn't possible to open info.json in write mode.\n\n");
@@ -443,12 +414,65 @@ void saveNewArgs(struct APIData_t data)
     fputs(puts_buffer, arq);
 
     fclose(arq);
-    free(buffer);
     free(puts_buffer);
     cJSON_Delete(infoJSON);
 }
 
-void checkTerminalArgs(struct APIData_t * data, int argc, char * argv[])
+void SearchInCache(struct APIData_t * data)
+{   
+    FILE * info = fopen("info.json", "r");
+    if (info == NULL) {
+        fprintf(stderr, "info.json not found.\n\n");
+        return;
+    }
+
+    cJSON * infoJSON = NULL;
+    size_t buffer_size = file_size(info);
+    char * buffer = (char *)calloc(buffer_size + 1, sizeof(char));
+
+    fread(buffer, buffer_size, 1, info);
+
+    infoJSON = cJSON_Parse(buffer);
+    if (cJSON_HasObjectItem(infoJSON, "appid"))
+    {
+        data->appid = cJSON_Print(cJSON_GetObjectItemCaseSensitive(infoJSON, "appid"));
+        strcln(data->appid);
+    }
+    
+    if (cJSON_HasObjectItem(infoJSON, "Geocoding"))
+    {   
+        cJSON * geoJSON = cJSON_GetObjectItemCaseSensitive(infoJSON, "Geocoding");
+
+        data->geo.city = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "city"));
+        data->geo.state = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "state"));
+        data->geo.country = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "country"));
+        data->geo.lat = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "lat"));
+        data->geo.lon = cJSON_Print(cJSON_GetObjectItemCaseSensitive(geoJSON, "lon"));
+
+        strcln(data->geo.city);
+        strcln(data->geo.state);
+        strcln(data->geo.country);
+        strcln(data->geo.lat);
+        strcln(data->geo.lon);
+    }
+
+    if (cJSON_HasObjectItem(infoJSON, "units"))
+    {
+        data->units = cJSON_Print(cJSON_GetObjectItemCaseSensitive(infoJSON, "units"));
+        strcln(data->units);
+    }
+    else
+    {
+        data->units = NULL;
+    }
+
+    fclose(info);
+    cJSON_Delete(infoJSON);
+    free(buffer);
+}
+
+
+void SearchInTerminalArgs(struct APIData_t * data, int argc, char * argv[])
 {
     for (int i = 0; i < argc; i++)
     {
@@ -483,17 +507,15 @@ void checkTerminalArgs(struct APIData_t * data, int argc, char * argv[])
         if (data->geo.country == NULL) {
             fprintf(stderr, "ISO Code was not provided, impossible to continue.\n\n");
         }
-
-        exit(-1);
     }
 
     if (strcmp(data->units, "") == 0)
     {
-      requestForJSON(data->units, "units");
-      if (strcmp(data->units, "") == 0)
-      {
-        strcpy(data->units, "metric");
-      }
+        requestForJSON(data->units, "units");
+        if (strcmp(data->units, "") == 0)
+        {
+            strcpy(data->units, "metric");
+        }
     }
 
     if (strcmp(data->appid, "") == 0)
@@ -502,37 +524,59 @@ void checkTerminalArgs(struct APIData_t * data, int argc, char * argv[])
         if (data->appid == NULL)
         {
             fprintf(stderr, "Appid was not provided and also not found in info.json.\n\n");
-            exit(-1);
         }
     }
 }
 
-void printCurrentWeather(const struct APIData_t data, const struct currentWeather_t cW)
+int checkArgs(const struct APIData_t data, const bool cache)
 {
-    char * ch;
-    if (strcmp(data.units, "metric") == 0) {
-        ch = "°C";
-    } else {
-        ch = "°F";
+    int returnValue = 1;
+    if (data.appid == NULL || strcmp(data.appid, "") == 0)
+    {
+        fprintf(stderr, "appid is missing...\n");
+        returnValue = -1;
+    }
+    
+    if (cache == false) 
+    {
+        if (data.geo.city == NULL || strcmp(data.geo.city, "") == 0)
+        {
+            fprintf(stderr, "city is missing...\n");
+            returnValue = -1;
+        }
+
+        if (data.geo.country == NULL || strcmp(data.geo.country, "") == 0)
+        {
+            fprintf(stderr, "country is missing...\n");
+            returnValue = -1;
+        }
+    }
+   
+    if (cache == true)
+    {
+        if (data.geo.lat == NULL || strcmp(data.geo.lat, "") == 0)
+        {
+            fprintf(stderr, "latitude is missing in the info.json ...\n");
+            returnValue = -1;
+        }
+        
+        if (data.geo.lon == NULL || strcmp(data.geo.lon, "") == 0)
+        {
+            fprintf(stderr, "longitute is missing in the info.json ...\n");
+            returnValue = -1;
+        }
     }
 
-    printf(" %s | %s\n", cW.name, cW.country);
-    printf(" %s\n", cW.date);
-    printf(" %s: %s\n\n", cW.weather_main, cW.weather_description);
-
-    printf(" Temperature: %f %s \t| Feels like: %f %s\n", cW.temp, ch, cW.feels_like, ch);
-    printf(" Temperature min: %f %s \t| Temperature Max: %f %s\n", cW.temp_min, ch, cW.temp_max, ch);
-    printf(" Humidity: %f\n\n", cW.humidity);
-
-    printf(" Sunset: %s | Sunrise: %s\n", cW.sunset, cW.sunrise);
+    return returnValue;
 }
+
 
 /*  TERMINAL ARGS
  *  
  *  --appid   or  -a  : OpenWeather API key
  *  --city    or  -c  : the city you live in (if it constais space, put it between "")
  *  --country or  -C  : ISO 3166 code for your country
- *  --units   or  -u  : choose between celcius and fahrenheint
+ *  --units   or  -u  : choose between celsius and fahrenheit (default: celsius)
  * */
 
 
@@ -540,42 +584,59 @@ int main(int argc, char * argv[])
 {   
     struct APIData_t data = {NULL};
     if (argc < 2) 
-    {     
-        checkCache(&data);
-        struct string res = GETCurrentWeather(data);
-        struct currentWeather_t cW = readCurrentWeather(res);
-        printCurrentWeather(data, cW);
+    {   
+        printf("None args was passed, checking cache...\n\n");
+        SearchInCache(&data);
+        if (checkArgs(data, true) == 1)
+        {
+            struct string res = GETCurrentWeather(data);
+            struct currentWeather_t cW = readCurrentWeather(res);
 
-        deleteSTRING(&res);
-        deleteAPIData_t(&data);
-        deleteCurrentWeather_t(&cW);
+            printCurrentWeather(data, cW);
+            
+            deleteSTRING(&res);
+            deleteAPIData_t(&data);
+            deleteCurrentWeather_t(&cW);
+        }
+        else // important args missing (appid and geocoding) 
+        {
+            char * error_msg = "Some needed data was not found in cache. Please run the application again passing that data.\n\n";
+            fprintf(stderr, error_msg);
+
+            deleteAPIData_t(&data);
+            return -1;
+        }    
     }
     else
     {   
         data = initData();
-        checkTerminalArgs(&data, argc, argv);
-        struct string resGeocoding = GETGeocoding(data);
+        SearchInTerminalArgs(&data, argc, argv);
+        if (checkArgs(data, false) == 1)
+        {
+            struct string resGeocoding = GETGeocoding(data);
 
-        data.geo = readGeocoding(resGeocoding);
+            data.geo = readGeocoding(resGeocoding);
 
-        struct string resCurrentWeather = GETCurrentWeather(data);
-        struct currentWeather_t cW = readCurrentWeather(resCurrentWeather);
+            struct string resCurrentWeather = GETCurrentWeather(data);
+            struct currentWeather_t cW = readCurrentWeather(resCurrentWeather);
 
-        printCurrentWeather(data, cW);
+            printCurrentWeather(data, cW);
 
-        saveNewArgs(data);
+            saveNewArgs(data);
 
-        deleteSTRING(&resCurrentWeather);
-        deleteSTRING(&resGeocoding);
-        deleteAPIData_t(&data);
-        deleteCurrentWeather_t(&cW);
+            deleteSTRING(&resCurrentWeather);
+            deleteSTRING(&resGeocoding);
+            deleteAPIData_t(&data);
+            deleteCurrentWeather_t(&cW);
+        }
+        else 
+        {
+            char * error_msg = "Some importante arguments was not passed to the program. Please read the docs or pass the argument --help next time to get some instructions\n\n";
+            fprintf(stderr, error_msg);
+            deleteAPIData_t(&data);
+            return -1;
+        }
     }
 
     return 0;
 }
-
-/* 
-    TO DO:
-        terminal args are not working: segmented fault somewhere
-
-*/
